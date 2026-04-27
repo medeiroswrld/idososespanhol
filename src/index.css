@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800&display=swap');
+
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #E8622A;
+  --color-primary-hover: #C94F1C;
+  --color-secondary: #4A9B7F;
+  --color-secondary-hover: #357A63;
+  --color-accent: #F5A623;
+  --color-accent-hover: #D4891A;
+  --color-background-light: #FFF8F0;
+  --color-background-card: #FFFFFF;
+  --color-background-alt: #FFF3E8;
+  --color-text-main: #2D2D2D;
+  --color-text-sec: #6B6B6B;
+  
+  --color-dark-bg: #1A1A2E;
+  --color-dark-card: #252540;
+  --color-dark-text: #F0EDE8;
+  --color-dark-primary: #F07848;
+
+  --font-body: 'Nunito', 'sans-serif';
+  --font-heading: 'Nunito', 'sans-serif';
+}
+
+@layer base {
+  html, body, #root {
+    font-size: 20px;
+    background-color: #FFF8F0;
+    box-shadow: none;
+    outline: none;
+  }
+  
+  .dark html, .dark body, .dark #root,
+  html.dark, html.dark body, html.dark #root {
+    background-color: #1A1A2E;
+    color: #F0EDE8;
+  }
+  
+  body {
+    @apply font-body text-text-main transition-colors duration-200 antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading text-[24px] md:text-3xl lg:text-4xl font-bold text-text-main dark:text-dark-text;
+  }
+  
+  /* Form elements */
+  input, select, textarea {
+    @apply bg-white dark:bg-dark-card border border-[#E8E0D8] dark:border-slate-600 rounded-2xl px-5 py-4 min-h-[64px] focus:outline-none focus:ring-2 focus:ring-primary dark:text-white;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply flex items-center justify-center bg-primary text-white font-bold rounded-2xl px-6 py-4 min-h-[64px] hover:bg-primary-hover active:scale-95 transition-all shadow-sm;
+  }
+  
+  .btn-secondary {
+    @apply flex items-center justify-center bg-secondary text-white font-bold rounded-2xl px-6 py-4 min-h-[64px] hover:bg-secondary-hover active:scale-95 transition-all shadow-sm;
+  }
+
+  .btn-outline {
+    @apply flex items-center justify-center border-2 border-[#E8E0D8] text-text-main dark:text-white dark:border-slate-600 font-bold rounded-2xl px-6 py-4 min-h-[64px] hover:bg-black/5 active:scale-95 transition-all;
+  }
+  
+  .card {
+    @apply bg-background-card dark:bg-dark-card rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-[#E8E0D8] dark:border-slate-700 p-6;
+  }
+}
+
+/* Animations */
+@keyframes confeti {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+}

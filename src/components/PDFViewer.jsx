@@ -1,35 +1,47 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
-import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Printer, Globe } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Printer, Globe, ExternalLink } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+
+// For production stability, we can also use the CDN worker as a fallback if needed
+// but let's try to ensure the bundled one is used correctly.
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Setting worker path correctly for Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 export default function PDFViewer({ ebook, onClose }) {
   const { t, user } = useUser();
   const [pdfDoc, setPdfDoc] = useState(null);
   const [pageNum, setPageNum] = useState(1);
-  const [scale, setScale] = useState(1.0); // Simple zoom for desktop/tablet mode
+  const [scale, setScale] = useState(1.0);
   const canvasRef = useRef(null);
   const [translating, setTranslating] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
   const [error, setError] = useState(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadPdf = async () => {
       try {
+        setLoading(true);
         setError(null);
-        console.log("Loading PDF url:", ebook.pdfUrl);
-        const loadingTask = pdfjsLib.getDocument(ebook.pdfUrl);
+        console.log("Attempting to load PDF from:", ebook.pdfUrl);
+        
+        const loadingTask = pdfjsLib.getDocument({
+          url: ebook.pdfUrl,
+          // Add some options for better compatibility
+          withCredentials: false
+        });
+        
         const pdf = await loadingTask.promise;
         setPdfDoc(pdf);
-        setPageNum(1); // Or load from user.library progress if desired
-      } catch (error) {
-        console.error("Error loading PDF", error);
-        setError(error.message || "Failed to load PDF");
+        setPageNum(1);
+        setLoading(false);
+      } catch (err) {
+        console.error("PDF.js Error:", err);
+        setError(`${err.message || "Failed to load"}. URL: ${ebook.pdfUrl}`);
+        setLoading(false);
       }
     };
     loadPdf();
@@ -43,27 +55,29 @@ export default function PDFViewer({ ebook, onClose }) {
 
   const renderPage = async (num) => {
     if (!pdfDoc) return;
-    const page = await pdfDoc.getPage(num);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    // In a real mobile app, responsive width is better. Here we set simple scale.
-    // Fit to parent width
-    let viewport = page.getViewport({ scale: scale });
-    const parentWidth = canvas.parentElement.clientWidth;
-    const fitScale = (parentWidth - 32) / viewport.width; // 32 is padding
-    viewport = page.getViewport({ scale: fitScale * scale });
+    try {
+      const page = await pdfDoc.getPage(num);
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      let viewport = page.getViewport({ scale: scale });
+      const parentWidth = canvas.parentElement.clientWidth;
+      const fitScale = (parentWidth - 32) / viewport.width;
+      viewport = page.getViewport({ scale: fitScale * scale });
 
-    const ctx = canvas.getContext('2d');
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
+      const ctx = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
 
-    const renderContext = {
-      canvasContext: ctx,
-      viewport: viewport
-    };
+      const renderContext = {
+        canvasContext: ctx,
+        viewport: viewport
+      };
 
-    await page.render(renderContext).promise;
+      await page.render(renderContext).promise;
+    } catch (err) {
+      console.error("Render Error:", err);
+    }
   };
 
   const handleTranslate = async () => {
@@ -91,7 +105,6 @@ export default function PDFViewer({ ebook, onClose }) {
 
       const data = await response.json();
       
-      // Google translate returns an array where data[0] contains translation segments
       if (data && data[0]) {
         const fullTranslation = data[0].map(segment => segment[0]).join('');
         setTranslatedText(fullTranslation);
@@ -109,8 +122,7 @@ export default function PDFViewer({ ebook, onClose }) {
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
-    const title = ebook.title;
-    // Extract canvas image to print. Mobile-friendly basic print.
+    const title = ebook.titulo;
     const imgSrc = canvasRef.current.toDataURL();
 
     printWindow.document.write(`
@@ -146,6 +158,7 @@ export default function PDFViewer({ ebook, onClose }) {
           <ArrowLeft size={24} className="text-white" />
         </button>
         <span className="font-heading font-bold text-sm sm:text-lg truncate flex-1 px-2 sm:px-4 text-center text-white">{ebook.titulo}</span>
+        <div className="w-10"></div> {/* Spacer for symmetry */}
       </div>
 
       {/* Progress Bar */}
@@ -159,20 +172,42 @@ export default function PDFViewer({ ebook, onClose }) {
       {/* Main PDF Area */}
       <div className="flex-1 overflow-y-auto w-full flex flex-col items-center p-2 sm:p-4 pb-24">
         {error ? (
-           <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-4">
-             <div className="text-red-500 font-bold text-lg sm:text-xl">Erro ao carregar PDF</div>
-             <div className="text-gray-500 text-xs sm:text-sm max-w-sm text-center">{error}</div>
-             <button onClick={() => window.location.reload()} className="btn-primary mt-4 text-sm">Tentar novamente</button>
+           <div className="flex-1 flex flex-col items-center justify-center space-y-6 px-6 text-center">
+             <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-3xl border border-red-100 dark:border-red-800">
+               <div className="text-red-500 font-bold text-lg mb-2">Erro ao carregar o livro</div>
+               <div className="text-gray-500 text-xs sm:text-sm break-all font-mono mb-4">{error}</div>
+               
+               <div className="flex flex-col space-y-3">
+                 <button 
+                  onClick={() => window.open(ebook.pdfUrl, '_blank')}
+                  className="btn-primary flex items-center justify-center space-x-2 text-sm py-3"
+                 >
+                   <ExternalLink size={18} />
+                   <span>Abrir PDF Original</span>
+                 </button>
+                 
+                 <button 
+                  onClick={() => window.location.reload()} 
+                  className="text-primary font-bold text-sm hover:underline"
+                 >
+                   Tentar novamente
+                 </button>
+               </div>
+             </div>
+             
+             <p className="text-gray-400 text-xs max-w-xs">
+               Se o PDF abrir no botão acima mas não aqui, pode ser um problema de compatibilidade do navegador ou do visualizador interno.
+             </p>
            </div>
-        ) : pdfDoc ? (
-          <div className="relative w-full max-w-md mx-auto card shadow-md p-0.5 sm:p-1 mb-4">
-            <canvas ref={canvasRef} className="w-full h-auto rounded-lg" />
-          </div>
-        ) : (
+        ) : loading ? (
            <div className="flex-1 flex flex-col items-center justify-center space-y-4">
              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-primary"></div>
              <p className="text-primary font-bold animate-pulse">Cargando...</p>
            </div>
+        ) : (
+          <div className="relative w-full max-w-md mx-auto card shadow-md p-0.5 sm:p-1 mb-4">
+            <canvas ref={canvasRef} className="w-full h-auto rounded-lg" />
+          </div>
         )}
 
         {/* Translation Box */}
@@ -220,14 +255,16 @@ export default function PDFViewer({ ebook, onClose }) {
         {/* Actions */}
         <div className="flex space-x-1.5 sm:space-x-2">
           <button 
+            disabled={!pdfDoc}
             onClick={handleTranslate}
-            className="p-2.5 sm:p-3 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-full shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="p-2.5 sm:p-3 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-full shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"
           >
             <Globe size={20} />
           </button>
           <button 
+            disabled={!pdfDoc}
             onClick={() => setShowPrintModal(true)}
-            className="p-2.5 sm:p-3 bg-primary/10 text-primary rounded-full shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="p-2.5 sm:p-3 bg-primary/10 text-primary rounded-full shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"
           >
             <Printer size={20} />
           </button>
